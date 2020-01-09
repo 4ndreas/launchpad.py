@@ -1800,6 +1800,229 @@ class LaunchControlXL( LaunchpadBase ):
 
 
 
+
+########################################################################################
+### CLASS LaunchControl
+###
+### For 2-color Launch Control
+########################################################################################
+class LaunchControl( LaunchpadBase ):
+
+	# LED, BUTTON AND POTENTIOMETER NUMBERS IN RAW MODE (DEC)
+	#         
+	#     +---+---+---+---+---+---+---+---+  +---++---+
+	#     | 21| 22| 23| 24| 25| 26| 27| 28|  |NOP||NOP| 
+	#     +---+---+---+---+---+---+---+---+  +---++---+
+	#     | 41| 42| 43| 44| 45| 46| 47| 48|  |114||115| 
+	#     +---+---+---+---+---+---+---+---+  +---++---+
+	#     |  9| 10| 11| 12| 13| 14| 15| 16|  |116||117| 
+	#     +---+---+---+---+---+---+---+---+  +---++---+
+	#     
+	#
+	#
+	# LED NUMBERS IN X/Y MODE (DEC)
+	#
+	#       0   1   2   3   4   5   6   7      8    9
+	#      
+	#     +---+---+---+---+---+---+---+---+  +---++---+
+	#     |   |   |   |   |   |   |   |   |  |NOP||NOP|  0
+	#     +---+---+---+---+---+---+---+---+  +---++---+
+	#     |   |   |   |   |   |   |   |   |  |   ||   |  1
+	#     +---+---+---+---+---+---+---+---+  +---++---+
+	#     |   |   |   |   |   |5/2|   |   |  |   ||   |  2
+	#     +---+---+---+---+---+---+---+---+  +---++---+
+	#
+
+
+
+	#-------------------------------------------------------------------------------------
+	#-- Opens one of the attached Control XL MIDI devices.
+	#-- Uses search string "Control XL", by default.
+	#-------------------------------------------------------------------------------------
+	# Overrides "LaunchpadBase" method
+	def Open( self, number = 0, name = "Control", template = 0 ):
+
+		# The user template number adds to the MIDI commands.
+		# Make sure that the Control is set to the corresponding mode by
+		# holding down one of the template buttons and selecting the template
+		# with the lowest button row 1..8 (variable here stores that as 0..7 for
+		# user or 8..15 for the factory templates).
+		# By default, user template 0 is enabled
+		self.UserTemplate = template
+		
+		retval = super( LaunchControl, self ).Open( number = number, name = name )
+		if retval == True:
+			self.TemplateSet( self.UserTemplate )
+
+		return retval
+
+
+	#-------------------------------------------------------------------------------------
+	#-- Checks if a device exists, but does not open it.
+	#-- Does not check whether a device is in use or other, strange things...
+	#-- Uses search string "Pro", by default.
+	#-------------------------------------------------------------------------------------
+	# Overrides "LaunchpadBase" method
+	def Check( self, number = 0, name = "Control" ):
+		return super( LaunchpadPro, self ).Check( number = number, name = name )
+
+
+	#-------------------------------------------------------------------------------------
+	#-- Sets the layout template.
+	#-- 1..8 selects the user and 9..16 the factory setups.
+	#-------------------------------------------------------------------------------------
+	def TemplateSet( self, templateNum ):
+		if templateNum < 1 or templateNum > 16:
+			return
+		else:
+			# self.midi.RawWriteSysEx( [ 0, 32, 41, 2, 17, 119, templateNum-1 ] )
+			self.midi.RawWriteSysEx( [ 0, 32, 41, 2, 10, 120, templateNum-1 ] )
+			# //Hex version F0h 00h 20h 29h 02h 0Ah 78h [Template] [LED] Value F7h
+            # //Where Template is 00h-07h (0-7) for the 8 user templates, and 08h-0Fh (8-15) for the 8 factory
+            # //templates; LED is the index of the pad/button (00h-07h (0-7) for pads, 08h-0Bh (8-11) for buttons);
+            # //and Value is the velocity byte that defines the brightness values of both the red and green LEDs.
+
+
+	#-------------------------------------------------------------------------------------
+	#-- reset the Launchpad
+	#-- Turns off all LEDs
+	#-------------------------------------------------------------------------------------
+	def Reset( self ):
+		self.midi.RawWrite( 176, 0, 0 )
+
+
+	#-------------------------------------------------------------------------------------
+	#-- all LEDs on
+	#-- <colorcode> is here for backwards compatibility with the newer "Mk2" and "Pro"
+	#-- classes. If it's "0", all LEDs are turned off. In all other cases turned on,
+	#-- like the function name implies :-/
+	#-------------------------------------------------------------------------------------
+	def LedAllOn( self, colorcode = None ):
+		if colorcode is None or colorcode == 0:
+			self.Reset()
+		else:
+			self.midi.RawWrite( 176, 0, 127 )
+
+
+	#-------------------------------------------------------------------------------------
+	#-- Returns a Launchpad compatible "color code byte"
+	#-- NOTE: In here, number is 0..7 (left..right)
+	#-------------------------------------------------------------------------------------
+	def LedGetColor( self, red, green ):
+		# TODO: copy and clear bits
+		led = 0
+		
+		red = min( int(red), 3 ) # make int and limit to <=3
+		red = max( red, 0 )      # no negative numbers
+
+		green = min( int(green), 3 ) # make int and limit to <=3
+		green = max( green, 0 )      # no negative numbers
+
+		led |= red
+		led |= green << 4 
+		
+		return led
+
+	#-------------------------------------------------------------------------------------
+	#-- Controls a  LED by its number with <green/red> brightness 0..3
+	#-------------------------------------------------------------------------------------
+	def LedCtrlRaw( self, number, red, green ):
+	
+		color = self.LedGetColor( red, green )
+
+		if number > 11:
+			return
+			
+		# Hex version F0h 00h 20h 29h 02h 0Ah 78h [Template] [LED] Value F7h
+		self.midi.RawWriteSysEx( [ 0, 32, 41, 2, 10, 120, 0, number, color ] )
+
+	#-------------------------------------------------------------------------------------
+	#-- Controls a  LED by its number with <green/red> brightness 0..3
+	#-------------------------------------------------------------------------------------
+	def LedCtrl( self, number, red, green ):
+	
+		color = self.LedGetColor( red, green )
+		led = 0
+
+
+		if number == 9:
+			led = 0
+		elif number == 10:
+			led = 1
+		elif number == 11:
+			led = 2
+		elif number == 12:
+			led = 3
+		elif number == 13:
+			led = 4
+		elif number == 14:
+			led = 5
+		elif number == 15:
+			led = 6
+		elif number == 16:
+			led = 7
+		elif number == 114:
+			led = 8
+		elif number == 115:
+			led = 9
+		elif number == 116:
+			led = 10
+		elif number == 117:
+			led = 11																														
+		else:
+			return
+		# print("number %d" % number)
+		# Hex version F0h 00h 20h 29h 02h 0Ah 78h [Template] [LED] Value F7h
+		self.midi.RawWriteSysEx( [ 0, 32, 41, 2, 10, 120, 0, led, color ] )
+
+	#-------------------------------------------------------------------------------------
+	#-- Clears the input buffer (The Launchpads remember everything...)
+	#-------------------------------------------------------------------------------------
+	def InputFlush( self ):
+		return self.ButtonFlush()
+
+
+	#-------------------------------------------------------------------------------------
+	#-- Returns True if an event occured.
+	#-------------------------------------------------------------------------------------
+	def InputChanged( self ):
+		return self.midi.ReadCheck()
+
+
+	#-------------------------------------------------------------------------------------
+	#-- Returns the raw value of the last button or potentiometer change as a list:
+	#-- potentiometers/sliders:  <pot.number>, <value>     , 0 ]
+	#-- buttons:                 <pot.number>, <True/False>, 0 ]
+	#-------------------------------------------------------------------------------------
+	def InputStateRaw( self ):
+		if self.midi.ReadCheck():
+			a = self.midi.ReadRaw()
+			
+			#--- pressed
+			if    a[0][0][0] == 144:
+				return [ a[0][0][1], True, 127 ]
+			#--- released
+			elif  a[0][0][0] == 128:
+				return [ a[0][0][1], False, 0 ]
+			#--- potentiometers and the four cursor buttons
+			elif  a[0][0][0] == 176:
+				# --- cursor buttons
+				if a[0][0][1] >= 104 and a[0][0][1] <= 107:
+					if a[0][0][2] > 0:
+						return [ a[0][0][1], True, a[0][0][2] ]
+					else:
+						return [ a[0][0][1], False, 0 ]
+				# --- potentiometers
+				else:
+					return [ a[0][0][1], a[0][0][2], 0 ]
+			else:
+				return []
+		else:
+			return []
+
+
+
+
 ########################################################################################
 ### CLASS LaunchKey
 ###

@@ -30,52 +30,29 @@ def main():
 	lp = launchpad.Launchpad();
 
 	# check what we have here and override lp if necessary
-	if lp.Check( 0, "pro" ):
-		lp = launchpad.LaunchpadPro()
-		if lp.Open(0,"pro"):
-			print("Launchpad Pro")
-			mode = "Pro"
-			
-	elif lp.Check( 0, "mk2" ):
-		lp = launchpad.LaunchpadMk2()
-		if lp.Open( 0, "mk2" ):
-			print("Launchpad Mk2")
-			mode = "Mk2"
+	# if lp.Check( 0, "mk2" ):
+	# 	lp = launchpad.LaunchpadMk2()
+	# 	if lp.Open( 0, "mk2" ):
+	# 		print("Launchpad Mk2")
+	# 		mode = "Mk2"
 
-	elif lp.Check( 0, "control xl" ):
+	if lp.Check( 0, "control" ):
 		lp = launchpad.LaunchControlXL()
-		if lp.Open( 0, "control xl" ):
-			print("Launch Control XL")
+		if lp.Open( 0, "control" ):
+			print("Launch Control")
 			mode = "XL"
-			
-	elif lp.Check( 0, "launchkey" ):
-		lp = launchpad.LaunchKeyMini()
-		if lp.Open( 0, "launchkey" ):
-			print("LaunchKey (Mini)")
-			mode = "LKM"
-
-	elif lp.Check( 0, "dicer" ):
-		lp = launchpad.Dicer()
-		if lp.Open( 0, "dicer" ):
-			print("Dicer")
-			mode = "Dcr"
-			
-	else:
-		if lp.Open():
-			print("Launchpad Mk1/S/Mini")
-			mode = "Mk1"
 
 	if mode is None:
 		print("Did not find any Launchpads, meh...")
 		return
 
 
-	# scroll "HELLO" from right to left
-	if mode == "Mk1":
-		lp.LedCtrlString( "HELLO ", 0, 3, -1 )
-	# for all others except the XL and the LaunchKey
-	elif mode != "XL" and mode != "LKM" and mode != "Dcr":
-		lp.LedCtrlString( "HELLO ", 0, 63, 0, -1 )
+	# # scroll "HELLO" from right to left
+	# if mode == "Mk1":
+	# 	lp.LedCtrlString( "HELLO ", 0, 3, -1 )
+	# # for all others except the XL and the LaunchKey
+	# elif mode != "XL" and mode != "LKM" and mode != "Dcr":
+	# 	lp.LedCtrlString( "HELLO ", 0, 63, 0, -1 )
 
 
 	# random output
@@ -98,17 +75,18 @@ def main():
 	elif mode == "Dcr":
 		butHit = 30
 	else:
-		butHit = 10
-		
+		butHit = 100
+	
+	lp.Reset() # turn all LEDs off
 	while 1:
-		if mode == "Mk1" or mode == "XL":
-			lp.LedCtrlRaw( random.randint(0,127), random.randint(0,3), random.randint(0,3) )
-		elif mode == "Dcr":
-			lp.LedCtrlRaw( random.randint(0,130), random.randint(0,7), random.randint(0,15) )
-		elif mode != "LKM":
-			lp.LedCtrlRaw( random.randint(0,127), random.randint(0,63), random.randint(0,63), random.randint(0,63) )
+		# if mode == "Mk1" or mode == "XL":
+		# 	lp.LedCtrlRaw( random.randint(0,127), random.randint(0,3), random.randint(0,3) )
+		# elif mode == "Dcr":
+		# 	lp.LedCtrlRaw( random.randint(0,130), random.randint(0,7), random.randint(0,15) )
+		# elif mode != "LKM":
+		# 	lp.LedCtrlRaw( random.randint(0,127), random.randint(0,63), random.randint(0,63), random.randint(0,63) )
 		
-		time.wait( 5 )
+		# time.wait( 5 )
 		
 		if mode == "XL" or mode == "LKM":
 			but = lp.InputStateRaw()
@@ -117,9 +95,16 @@ def main():
 
 		if but != []:
 			butHit -= 1
+			if but[1] == 127:
+				lp.LedCtrlRaw(but[0],0,0,0) 
+			else:
+				lp.LedCtrlRaw(but[0],128,0,0)
+
 			if butHit < 1:
 				break
-			print( butHit, " event: ", but )
+			# print( butHit, " event: ", but )
+			data = 'event: %d - %d' % (but[0] , but[1])
+			print(data)
 
 	# now quit...
 	print("Quitting might raise a 'Bad Pointer' error (~almost~ nothing to worry about...:).\n\n")

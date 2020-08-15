@@ -60,6 +60,7 @@ class Midi:
 
 		self.devIn  = None
 		self.devOut = None
+		
 
 
 	#---------------------------------------------------------------------------------------
@@ -254,7 +255,7 @@ class LaunchpadBase( object ):
 		self.SCROLL_NONE  =  0
 		self.SCROLL_LEFT  = -1
 		self.SCROLL_RIGHT =  1
-
+		self.UserTemplate = 0
 
 	def __delete__( self ):
 		self.Close()
@@ -1848,7 +1849,8 @@ class LaunchControl( LaunchpadBase ):
 		# with the lowest button row 1..8 (variable here stores that as 0..7 for
 		# user or 8..15 for the factory templates).
 		# By default, user template 0 is enabled
-		self.UserTemplate = template
+		if template < 17 and template > 0:
+			self.UserTemplate = template - 1
 		
 		retval = super( LaunchControl, self ).Open( number = number, name = name )
 		if retval == True:
@@ -1876,11 +1878,12 @@ class LaunchControl( LaunchpadBase ):
 			return
 		else:
 			# self.midi.RawWriteSysEx( [ 0, 32, 41, 2, 17, 119, templateNum-1 ] )
-			self.midi.RawWriteSysEx( [ 0, 32, 41, 2, 10, 120, templateNum-1 ] )
+			self.midi.RawWriteSysEx( [ 0, 32, 41, 2, 10, 119, templateNum-1 ] )
 			# //Hex version F0h 00h 20h 29h 02h 0Ah 78h [Template] [LED] Value F7h
             # //Where Template is 00h-07h (0-7) for the 8 user templates, and 08h-0Fh (8-15) for the 8 factory
             # //templates; LED is the index of the pad/button (00h-07h (0-7) for pads, 08h-0Bh (8-11) for buttons);
             # //and Value is the velocity byte that defines the brightness values of both the red and green LEDs.
+			self.UserTemplate = templateNum - 1
 
 
 	#-------------------------------------------------------------------------------------
@@ -1901,7 +1904,7 @@ class LaunchControl( LaunchpadBase ):
 		if colorcode is None or colorcode == 0:
 			self.Reset()
 		else:
-			self.midi.RawWrite( 176, 0, 127 )
+			self.midi.RawWrite( 176 + self.UserTemplate, 0, 127 )
 
 
 	#-------------------------------------------------------------------------------------
@@ -1929,12 +1932,13 @@ class LaunchControl( LaunchpadBase ):
 	def LedCtrlRaw( self, number, red, green ):
 	
 		color = self.LedGetColor( red, green )
+		template = self.UserTemplate
 
 		if number > 11:
 			return
 			
 		# Hex version F0h 00h 20h 29h 02h 0Ah 78h [Template] [LED] Value F7h
-		self.midi.RawWriteSysEx( [ 0, 32, 41, 2, 10, 120, 0, number, color ] )
+		self.midi.RawWriteSysEx( [ 0, 32, 41, 2, 10, 120, template, number, color ] )
 
 	#-------------------------------------------------------------------------------------
 	#-- Controls a  LED by its number with <green/red> brightness 0..3
@@ -1943,7 +1947,7 @@ class LaunchControl( LaunchpadBase ):
 	
 		color = self.LedGetColor( red, green )
 		led = 0
-
+		template = self.UserTemplate
 
 		if number == 9:
 			led = 0
@@ -1973,7 +1977,7 @@ class LaunchControl( LaunchpadBase ):
 			return
 		# print("number %d" % number)
 		# Hex version F0h 00h 20h 29h 02h 0Ah 78h [Template] [LED] Value F7h
-		self.midi.RawWriteSysEx( [ 0, 32, 41, 2, 10, 120, 0, led, color ] )
+		self.midi.RawWriteSysEx( [ 0, 32, 41, 2, 10, 120, template, led, color ] )
 
 	#-------------------------------------------------------------------------------------
 	#-- Clears the input buffer (The Launchpads remember everything...)
